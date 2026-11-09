@@ -1,0 +1,61 @@
+#include <ESP32Servo.h>
+
+const int STEER_PIN = 18;
+const int ESC_PIN   = 19;
+
+// Positive steer = right (as tested)
+const int STEER_CENTER = 1500, STEER_RANGE = 400;  // microseconds either side
+const int ESC_NEUTRAL  = 1500, ESC_RANGE   = 300;  // 0.5 throttle = 1650 us
+
+const unsigned long TIMEOUT_MS = 300;  // watchdog: no command for 300 ms -> neutral
+const bool VERBOSE = false;            // true = print every command (for Serial Monitor tests)
+
+Servo steer, esc;
+unsigned long lastCmd = 0;
+bool timedOut = true;
+String line;
+
+void setNeutral() {
+  steer.writeMicroseconds(STEER_CENTER);
+  esc.writeMicroseconds(ESC_NEUTRAL);
+}
+
+void setup() {
+  Serial.begin(115200);
+  steer.setPeriodHertz(50);
+  esc.setPeriodHertz(50);
+  steer.attach(STEER_PIN, 500, 2500);
+  esc.attach(ESC_PIN, 500, 2500);
+  setNeutral();
+  delay(3000);  // lets the ESC arm at neutral
+  Serial.println("READY. Send: S,steer,throttle  (e.g. S,0.5,0.2)");
+}
+
+void handleLine(String s) {
+  float st, th;
+  if (sscanf(s.c_str(), "S,%f,%f", &st, &th) == 2) {
+    st = constrain(st, -1.0, 1.0);
+    th = constrain(th, -1.0, 1.0);
+    int steerUs = STEER_CENTER + (int)(st * STEER_RANGE);
+    int escUs   = ESC_NEUTRAL  + (int)(th * ESC_RANGE);
+    steer.writeMicroseconds(steerUs);
+    esc.writeMicroseconds(escUs);
+    lastCmd = millis();
+    timedOut = false;
+    if (VERBOSE) Serial.printf("OK steer=%.2f (%d us) throttle=%.2f (%d us)\n", st, steerUs, th, escUs);
+  } else {
+    Serial.println("BAD COMMAND");
+  }
+}
+
+void loop() {
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n') { handleLine(line); line = ""; }
+    else if (c != '\r') line += c;
+  }
+  if (millis() - lastCmd > TIMEOUT_MS) {
+    setNeutral();  // watchdog
+    if (!timedOut) { Serial.println("WATCHDOG: neutral"); timedOut = true; }
+  }
+}
