@@ -7,3 +7,4 @@ Source code for our autonomous RC car, built for the **Urban Autonomous Mobility
 - Platform: Raspberry Pi 5 + ESP32
 - Sensors: camera + RPLIDAR C1
 - Round 1: lane-keeping, obstacle stop, STOP sign, E-stop
+- Round 2: planning to move to ROS 2 if needed
